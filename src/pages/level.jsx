@@ -162,11 +162,6 @@ function MathQuiz({ branch, num }) {
                 <button className="btn btn-primary" type="submit">Submit</button>
             </form>
             <hr className="mb-2 mt-2 border-primary" />
-            <div className="flex">
-                <div className="mr-2 badge badge-accent">Total Damage Dealt:<strong>{score}</strong></div>
-                <div className="ml-2 badge badge-accent">Prev Atk Dmg:<strong>{comboCnt}</strong></div>
-            </div>
-            <hr className="mb-2 mt-2 border-primary" />
 
             {/* Health bar made by Google Gemini */}
             <div className="flex justify-between items-center">

@@ -16,6 +16,69 @@ const DUNGEON1 = [
     ['#', '#', '#', '#', 'T', '#', '#'],
 ]
 
+const LOW_LEVEL_ENEMIES = ["Goblin", "Slime", "Wolf"];
+const HIGH_LEVEL_ENEMIES = ["Ogre", "Wraith", "Golem"];
+
+function createEnemy(name, tier, health, attackDamage, isBoss = false) {
+    const isBuffed = Math.random() < 0.3;
+    const multiplier = isBuffed ? 1.5 : 1;
+    const maxHealth = Math.round(health * multiplier);
+
+    return {
+        id: `${name}-${Math.random().toString(36).slice(2)}`,
+        name,
+        tier,
+        health: maxHealth,
+        maxHealth,
+        attackDamage: Math.round(attackDamage * multiplier),
+        isBuffed,
+        isBoss,
+    };
+}
+
+function shuffle(items) {
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const otherIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[otherIndex]] = [shuffled[otherIndex], shuffled[index]];
+    }
+    return shuffled;
+}
+
+function createEncounter(isBossRoom) {
+    const enemies = [];
+
+    if (isBossRoom) {
+        enemies.push(createEnemy("Dragon", "boss", 80, 12, true));
+        const minionCount = 2 + Math.floor(Math.random() * 2);
+        for (let index = 0; index < minionCount; index += 1) {
+            const name = LOW_LEVEL_ENEMIES[Math.floor(Math.random() * LOW_LEVEL_ENEMIES.length)];
+            enemies.push(createEnemy(name, "low", 12, 4));
+        }
+        return shuffle(enemies);
+    }
+
+    const enemyCount = 7 + Math.floor(Math.random() * 4);
+    const lowLevelCount = Math.ceil(enemyCount / 2);
+    for (let index = 0; index < lowLevelCount; index += 1) {
+        const name = LOW_LEVEL_ENEMIES[Math.floor(Math.random() * LOW_LEVEL_ENEMIES.length)];
+        enemies.push(createEnemy(name, "low", 12, 4));
+    }
+    for (let index = lowLevelCount; index < enemyCount; index += 1) {
+        const name = HIGH_LEVEL_ENEMIES[Math.floor(Math.random() * HIGH_LEVEL_ENEMIES.length)];
+        enemies.push(createEnemy(name, "high", 24, 7));
+    }
+    return shuffle(enemies);
+}
+
+function createDungeonEncounters(dungeon) {
+    return Object.fromEntries(dungeon.flatMap((row, rowIndex) =>
+        row.flatMap((room, columnIndex) => room === "E" || room === "B"
+            ? [[`${rowIndex}-${columnIndex}`, createEncounter(room === "B")]]
+            : [])
+    ));
+}
+
 
 
 
@@ -23,6 +86,7 @@ const DUNGEON1 = [
 
 export default function Dungeon() {
     const [selectedRoom, setSelectedRoom] = useState([0, 0]);
+    const [encounters, setEncounters] = useState(() => createDungeonEncounters(DUNGEON1));
 
     const [score, setScore] = useState(0);
     const [health, setHealth] = useState(100);
@@ -41,7 +105,7 @@ export default function Dungeon() {
                 <div className="m-2 flex flex-col justify-center items-start">
                     <div className="grid grid-cols-7 gap-0 border border-primary">
                         {DUNGEON1.map((row, r) =>
-                            row.map((room, c) => <Room room={room} current={selectedRoom[0] === r && selectedRoom[1] === c} />)
+                            row.map((room, c) => <Room key={`${r}-${c}`} room={room} current={selectedRoom[0] === r && selectedRoom[1] === c} onSelect={() => setSelectedRoom([r, c])} />)
                         )}
                     </div>
                     <div>
@@ -77,16 +141,16 @@ export default function Dungeon() {
                     </div>
                 </div>
                 <div>
-                    <MathQuizRoom d={DUNGEON1} r={selectedRoom} health={health} setHealth={setHealth} score={score} setScore={setScore} errCnt={errCnt} setErrCnt={setErrCnt} comboCnt={comboCnt} setComboCnt={setComboCnt} />
+                    <MathQuizRoom d={DUNGEON1} r={selectedRoom} encounters={encounters} setEncounters={setEncounters} health={health} setHealth={setHealth} score={score} setScore={setScore} errCnt={errCnt} setErrCnt={setErrCnt} comboCnt={comboCnt} setComboCnt={setComboCnt} />
                 </div>
             </div>
         </div>
     )
 }
 
-function Room({ room, current }) {
+function Room({ room, current, onSelect }) {
     return (
-        <button className={`w-8 h-8 flex justify-center items-center text-black font-semibold ${room == "#" ? "bg-primary" : room == "S" ? "bg-accent" : room == "T" ? "bg-success" : room == "B" ? "bg-error" : "bg-secondary"} ${room === "#" ? null : "cursor-pointer"} ${current ? "animate-pulse" : ""}`} onClick={() => MathQuizRoom(DUNGEON1, room)}>
+        <button type="button" disabled={room === "#"} className={`w-8 h-8 flex justify-center items-center text-black font-semibold ${room == "#" ? "bg-primary" : room == "S" ? "bg-accent" : room == "T" ? "bg-success" : room == "B" ? "bg-error" : "bg-secondary"} ${room === "#" ? null : "cursor-pointer"} ${current ? "animate-pulse" : ""}`} onClick={onSelect}>
             {room == "#" ? null : room}
         </button>
     );
@@ -96,7 +160,7 @@ function Room({ room, current }) {
 // 1. Upon loading, the first problem often displays the wrong operator
 // (The issue must be the operator and not the number generation because when the numbers are generated for division problems, the sign is not always a slash)
 // 
-function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrCnt, comboCnt, setComboCnt }) {
+function GiveProblem({ health, setHealth, score, setScore, errCnt, setErrCnt, comboCnt, setComboCnt, onAttack, onMistake }) {
     const [p, setP] = useState(Math.floor(Math.random() * 4));
     // 0 = Addition
     // 1 = Subtraction
@@ -117,6 +181,7 @@ function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrC
         setNum1(r[0]);
         setNum2(r[1]);
         setP(rO);
+        setOperator(opsList[rO]);
 
 
         const timer = setInterval(() => {
@@ -126,16 +191,7 @@ function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrC
         return () => clearInterval(timer);
     }, []);
 
-    const handleDeath = () => {
-        setHealth(0);
-        document.getElementById('my_modal_1').showModal();
-    }
-    const resetGame = () => {
-        setHealth(100);
-    }
-
     const generateNumbers = (op) => {
-        console.log(op);
         let numbers = [Math.floor(Math.random() * 10), Math.floor(Math.random() * 10)]
 
         if (op === "/") {
@@ -151,15 +207,20 @@ function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrC
         e.preventDefault();
         let correctAnswer = null;
         (p === 0 ? correctAnswer = num1 + num2 : p === 1 ? correctAnswer = num1 - num2 : p === 2 ? correctAnswer = num1 * num2 : correctAnswer = Math.floor(num1 / num2));
-        console.log(p, correctAnswer);
-        if (parseInt(userAnswer, 10) === correctAnswer) {
+        const wasCorrect = parseInt(userAnswer, 10) === correctAnswer;
+        if (wasCorrect) {
+            const attackDamage = comboCnt + 1;
             setFeedback('Correct!');
-            setScore(score + comboCnt);
+            setScore(score + attackDamage);
+            onAttack(attackDamage);
         } else {
             setFeedback(`Incorrect. The correct answer was ${correctAnswer}.`);
             setErrCnt(errCnt + 1);
-            setHealth(health - (errCnt * 5));
-            (health <= 0 ? { handleDeath } : null)
+            const remainingHealth = Math.max(0, health - onMistake());
+            setHealth(remainingHealth);
+            if (remainingHealth === 0) {
+                document.getElementById('my_modal_1')?.showModal();
+            }
         }
 
         // Generate new numbers for the next question
@@ -174,13 +235,11 @@ function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrC
         // Calculate time spent
         const endTime = Date.now();
         const timeSpent = (endTime - startTime.current) / 1000;
-        console.log(`Answered in ${timeSpent} seconds`);
         startTime.current = Date.now();
 
         // Keep track of correct answer combos
         const comboLim = 3;
-        (((timeSpent < comboLim) && (parseInt(userAnswer, 10) === correctAnswer)) ? setComboCnt(comboCnt + 1) : setComboCnt(0));
-        console.log(`Combo Count: ${comboCnt}`);
+        (timeSpent < comboLim && wasCorrect) ? setComboCnt(comboCnt + 1) : setComboCnt(0);
     };
 
     return (
@@ -215,36 +274,63 @@ function GiveProblem({ d, r, health, setHealth, score, setScore, errCnt, setErrC
     );
 }
 
-const ENEMIES = [
-    { name: "goblin", imageRef: "", health: 10, atk: 3 },
-    { name: "ogre", imageRef: "", health: 20, atk: 10 },
-    { name: "dragon", imageRef: "", health: 1, atk: 1 }
+function DisplayEnemies({ enemies }) {
+    if (enemies.length === 0) {
+        return <p className="p-4">Select an enemy room to begin a fight.</p>;
+    }
 
-
-]
-
-function DisplayEnemies({ d, r, health, setHealth, score, setScore }) {
-    const [enemies, setEnemies] = useState([
-
-    ])
+    const defeatedCount = enemies.filter((enemy) => enemy.health === 0).length;
 
     return (
-        <div>map enemies here</div>
-    )
+        <section className="m-4 max-w-2xl">
+            <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xl font-bold">Enemies</h2>
+                <span>{defeatedCount}/{enemies.length} defeated</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {enemies.map((enemy) => (
+                    <article key={enemy.id} className={`border border-primary p-3 ${enemy.health === 0 ? "opacity-50" : ""}`}>
+                        <div className="flex justify-between gap-2">
+                            <strong>{enemy.name}{enemy.isBoss ? " (Boss)" : ""}</strong>
+                            {enemy.isBuffed && <span className="badge badge-warning">Buffed</span>}
+                        </div>
+                        <div className="my-1 flex justify-between text-sm">
+                            <span>{enemy.tier === "boss" ? "Boss" : `${enemy.tier} level`}</span>
+                            <span>{enemy.health}/{enemy.maxHealth} HP</span>
+                        </div>
+                        <progress className="progress progress-error w-full" value={enemy.health} max={enemy.maxHealth} />
+                    </article>
+                ))}
+            </div>
+        </section>
+    );
 }
 
-function MathQuizRoom({ d, r, health, setHealth, score, setScore, errCnt, setErrCnt, comboCnt, setComboCnt }) {
+function MathQuizRoom({ d, r, encounters, setEncounters, health, setHealth, score, setScore, errCnt, setErrCnt, comboCnt, setComboCnt }) {
+    const roomKey = `${r[0]}-${r[1]}`;
+    const enemies = encounters[roomKey] || [];
+
+    const applyAttack = (damage) => {
+        setEncounters((currentEncounters) => {
+            const currentEnemies = currentEncounters[roomKey] || [];
+            let remainingDamage = damage;
+            const updatedEnemies = currentEnemies.map((enemy) => {
+                if (enemy.health === 0 || remainingDamage === 0) return enemy;
+                const appliedDamage = Math.min(enemy.health, remainingDamage);
+                remainingDamage -= appliedDamage;
+                return { ...enemy, health: enemy.health - appliedDamage };
+            });
+            return { ...currentEncounters, [roomKey]: updatedEnemies };
+        });
+    };
+
+    const enemyAttackDamage = () => enemies.find((enemy) => enemy.health > 0)?.attackDamage || 0;
 
     return (
         <div>
-            <div>
-                hero and enemies
-                <DisplayEnemies d={MathQuizRoom.d} r={MathQuizRoom.r} health={health} setHealth={setHealth} score={score} setScore={setScore} />
-            </div>
-            <div>
-                <GiveProblem d={MathQuizRoom.d} r={MathQuizRoom.r} health={health} setHealth={setHealth} score={score} setScore={setScore} errCnt={errCnt} setErrCnt={setErrCnt} comboCnt={comboCnt} setComboCnt={setComboCnt} />
-            </div>
+            <DisplayEnemies enemies={enemies} />
+            <GiveProblem health={health} setHealth={setHealth} score={score} setScore={setScore} errCnt={errCnt} setErrCnt={setErrCnt} comboCnt={comboCnt} setComboCnt={setComboCnt} onAttack={applyAttack} onMistake={enemyAttackDamage} />
         </div>
-    )
+    );
 }
 

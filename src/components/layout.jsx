@@ -22,13 +22,6 @@ export default function Layout() {
                     >
                         Dungeon
                     </NavLink>
-
-                    <NavLink
-                        to="/diagnostics"
-                        className={({ isActive }) => (isActive ? "text-primary" : "")}
-                    >
-                        Diagnostics
-                    </NavLink>
                 </div>
 
                 {/* user info */}
