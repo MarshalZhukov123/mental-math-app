@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: all;
+}
+
+.section {
+  @apply bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-12 m-2;
+}
