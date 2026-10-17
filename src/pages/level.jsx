@@ -1,8 +1,12 @@
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { useState, useEffect, useRef } from "react";
+import { completeLevel, isLevelUnlocked, readLevelProgress } from "./progression";
 
 export default function Level() {
     const { branch, num } = useParams();
+    const navigate = useNavigate();
+    const [runId, setRunId] = useState(0);
+    const isUnlocked = isLevelUnlocked(readLevelProgress(), branch, num);
 
     return (
         <div>
@@ -25,7 +29,14 @@ export default function Level() {
                 </div>
             </div>
             <hr className="m-2 border-primary" />
-            <MathQuiz branch={branch} num={num} />
+            {isUnlocked ? (
+                <MathQuiz key={runId} branch={branch} num={num} onRestart={() => setRunId((current) => current + 1)} onReturnToMap={() => navigate("/")} />
+            ) : (
+                <div className="m-4">
+                    <p>This level is locked. Complete earlier levels to unlock it.</p>
+                    <button className="btn btn-primary mt-3" onClick={() => navigate("/")}>Return to map</button>
+                </div>
+            )}
         </div>
 
     );
@@ -80,7 +91,7 @@ function numsForDivision() {
     return ([num1, num2]);
 }
 
-function MathQuiz({ branch, num }) {
+function MathQuiz({ branch, num, onRestart, onReturnToMap }) {
     const num1F = num1MultFactor(branch, num);
     const num2F = num2MultFactor(branch, num);
     const numD = numsForDivision();
@@ -91,10 +102,11 @@ function MathQuiz({ branch, num }) {
     const [score, setScore] = useState(0);
     const [errCnt, setErrCnt] = useState(0);
     const [health, setHealth] = useState(100);
-    const resetGame = () => {
-        setHealth(100);
-    }
     const [elapsed, setElapsed] = useState(0);
+    const [answered, setAnswered] = useState(0);
+    const [correctCount, setCorrectCount] = useState(0);
+    const [earnedStars, setEarnedStars] = useState(0);
+    const [isComplete, setIsComplete] = useState(false);
     useEffect(() => {
         const timer = setInterval(() => {
             setElapsed((prevElapsed) => prevElapsed + 1);
@@ -106,42 +118,55 @@ function MathQuiz({ branch, num }) {
 
     let [comboCnt, setComboCnt] = useState(0);
 
-    const handleDeath = () => {
-        setHealth(0);
-        document.getElementById('my_modal_1').showModal();
-    }
-
     // Answer submission
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (health === 0 || isComplete) return;
+
         let correctAnswer = num1 + num2;
         (branch === "A" ? correctAnswer = num1 + num2 : branch === "S" ? correctAnswer = num1 - num2 : branch === "M" ? correctAnswer = num1 * num2 : correctAnswer = num1 / num2)
-        if (parseInt(userAnswer, 10) === correctAnswer) {
+        const wasCorrect = parseInt(userAnswer, 10) === correctAnswer;
+        const nextAnswered = answered + 1;
+        const nextCorrectCount = correctCount + (wasCorrect ? 1 : 0);
+        setAnswered(nextAnswered);
+        let died = false;
+
+        if (wasCorrect) {
+            setCorrectCount(nextCorrectCount);
             setFeedback('Correct!');
-            setScore(score + comboCnt);
+            setScore(score + comboCnt + 1);
         } else {
             setFeedback(`Incorrect. The correct answer was ${correctAnswer}.`);
             setErrCnt(errCnt + 1);
-            setHealth(health - (errCnt * 5));
-            (health <= 0 ? { handleDeath } : null)
+            const remainingHealth = Math.max(0, health - 10);
+            setHealth(remainingHealth);
+            if (remainingHealth === 0) {
+                died = true;
+                document.getElementById('level-death-modal')?.showModal();
+            }
         }
 
-        // Generate new numbers for the next question
-
-        setNum1(branch === "D" ? numD[0] : Math.floor(Math.random() * num1F));
-        setNum2(branch === "D" ? numD[1] : Math.floor(Math.random() * num1F));
+        const nextDivisionNumbers = numsForDivision();
+        setNum1(branch === "D" ? nextDivisionNumbers[0] : Math.floor(Math.random() * num1F));
+        setNum2(branch === "D" ? nextDivisionNumbers[1] : Math.floor(Math.random() * num2F));
         setUserAnswer('');
 
         // Calculate time spent
         const endTime = Date.now();
         const timeSpent = (endTime - startTime.current) / 1000;
-        console.log(`Answered in ${timeSpent} seconds`);
         startTime.current = Date.now();
 
         // Keep track of correct answer combos
         const comboLim = 3;
-        (((timeSpent < comboLim) && (parseInt(userAnswer, 10) === correctAnswer)) ? setComboCnt(comboCnt + 1) : setComboCnt(0));
-        console.log(`Combo Count: ${comboCnt}`);
+        (timeSpent < comboLim && wasCorrect) ? setComboCnt(comboCnt + 1) : setComboCnt(0);
+
+        if (nextAnswered === 10 && !died) {
+            const stars = nextCorrectCount === 10 ? 3 : nextCorrectCount >= 9 ? 2 : nextCorrectCount >= 8 ? 1 : 0;
+            setEarnedStars(stars);
+            setIsComplete(true);
+            if (stars > 0) completeLevel(branch, num, stars);
+            document.getElementById('level-complete-modal')?.showModal();
+        }
     };
 
     let operator = "+";
@@ -158,9 +183,11 @@ function MathQuiz({ branch, num }) {
                     onChange={(e) => setUserAnswer(e.target.value)}
                     placeholder="Your answer"
                     required
+                    disabled={health === 0 || isComplete}
                 />
-                <button className="btn btn-primary" type="submit">Submit</button>
+                <button className="btn btn-primary" type="submit" disabled={health === 0 || isComplete}>Submit</button>
             </form>
+            <p className="mt-2 text-sm">Questions: {answered}/10 | Correct: {correctCount}</p>
             <hr className="mb-2 mt-2 border-primary" />
 
             {/* Health bar made by Google Gemini */}
@@ -186,15 +213,29 @@ function MathQuiz({ branch, num }) {
 
             <div className="badge badge-secondary">Time Elapsed: <strong>{elapsed}</strong></div>
             {feedback && <p>{feedback}</p>}
-            <dialog id="my_modal_1" className="modal">
+            <dialog id="level-death-modal" className="modal">
                 <div className="modal-box">
                     <h3 className="font-bold text-lg">You Died!</h3>
-                    <p className="py-4">Press ESC key or click the button below to close</p>
+                    <p className="py-4">Restart this level to try again.</p>
                     <div className="modal-action">
-                        <form method="dialog">
-                            {/* if there is a button in form, it will close the modal */}
-                            <button className="btn">Close</button>
-                        </form>
+                        <button type="button" className="btn btn-primary" onClick={onRestart}>Restart Level</button>
+                    </div>
+                </div>
+            </dialog>
+            <dialog id="level-complete-modal" className="modal">
+                <div className="modal-box">
+                    <h3 className="font-bold text-lg">Level Complete</h3>
+                    <p className="py-4">
+                        {earnedStars > 0
+                            ? `You earned ${earnedStars} star${earnedStars === 1 ? "" : "s"}.`
+                            : "You need at least 8 correct answers to earn a star and unlock the next level."}
+                    </p>
+                    <div className="modal-action">
+                        {earnedStars > 0 ? (
+                            <button type="button" className="btn btn-primary" onClick={onReturnToMap}>Continue to Map</button>
+                        ) : (
+                            <button type="button" className="btn btn-primary" onClick={onRestart}>Restart Level</button>
+                        )}
                     </div>
                 </div>
             </dialog>
