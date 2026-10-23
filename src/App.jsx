@@ -3,6 +3,7 @@ import Layout from "./components/layout";
 import Map from "./pages/map";
 import Level from "./pages/level";
 import Dungeon from "./pages/dungeon";
+import Login from "./pages/login";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
         <Route path="/" element={<Map />} />
         <Route path="/level/:branch/:num" element={<Level />} />
         <Route path="/dungeon" element={<Dungeon />} />
+        <Route path="/login" element={<Login />} />
       </Route>
     </Routes>
   );
