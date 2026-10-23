@@ -123,7 +123,7 @@ export default function Map() {
             <h1 className="text-3xl text-primary font-bold ml-4">Map</h1>
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div>
-                    <h2 className="text-lg text-accent font-semibold">Welcome, [username]!</h2>
+                    <h2 className="text-lg text-accent font-semibold">Welcome, Aiden!</h2>
                     <p className="text-sm opacity-70">Choose a level to continue your practice.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

@@ -141,7 +141,7 @@ export default function Dungeon() {
                     <h1 className="text-3xl text-primary font-bold">Dungeon</h1>
                     <p className="text-sm opacity-70">{dungeon.name} · {dungeon.layout.length} × {dungeon.layout[0].length}</p>
                 </div>
-                <div className="badge badge-warning h-10 px-3 font-semibold">{totalStars} stars</div>
+                <div className="badge badge-warning h-10 px-3 font-semibold">{totalStars} <span aria-hidden="true">★</span></div>
             </div>
             <div className="mb-4 flex flex-wrap gap-2">
                 {DUNGEONS.map((item, index) => {
